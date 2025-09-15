@@ -6,6 +6,7 @@ import { WorkflowPanel } from './WorkflowPanel';
 import { ModelConfigPanel } from './ModelConfigPanel';
 import { PlanningPhase } from './PlanningPhase';
 import { StreamingGeneration } from './StreamingGeneration';
+import { IterativePanel } from './IterativePanel';
 import { useGenerationStore } from '../stores/generationStore';
 import { useWebSocket } from '../providers/WebSocketProvider';
 import { useResponsive } from '../hooks/useResponsive';
@@ -19,6 +20,8 @@ export const AppShell: React.FC = () => {
     currentPhase, 
     currentPlan, 
     isGenerating,
+    completedPhases,
+    generatedCode,
     startGeneration,
     approvePlan 
   } = useGenerationStore();
@@ -73,7 +76,7 @@ export const AppShell: React.FC = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Input, Planning, or Generation */}
+        {/* Left Panel - Input, Planning, Generation, or Iterative */}
         <div className={`${
           isMobile 
             ? `fixed inset-y-0 left-0 z-50 w-80 transform transition-transform ${
@@ -83,7 +86,11 @@ export const AppShell: React.FC = () => {
               ? 'w-2/5' 
               : 'w-1/3'
         } border-r border-gray-200 bg-white overflow-y-auto`}>
-          {currentPlan && currentPhase !== 'generating' && currentPhase !== 'documenting' ? (
+          {/* Show IterativePanel if generation is complete */}
+          {completedPhases.includes('generating') && !isGenerating && generatedCode ? (
+            <IterativePanel />
+          ) : /* Show PlanningPhase if we have a plan but haven't started generating */
+          currentPlan && !completedPhases.includes('generating') && currentPhase !== 'generating' && currentPhase !== 'documenting' ? (
             <div className="p-6">
               <PlanningPhase
                 plan={currentPlan}
@@ -98,11 +105,13 @@ export const AppShell: React.FC = () => {
                 }}
               />
             </div>
-          ) : isGenerating ? (
+          ) : /* Show StreamingGeneration if currently generating */
+          isGenerating ? (
             <div className="p-6">
               <StreamingGeneration />
             </div>
-          ) : (
+          ) : /* Default to InputPanel for new projects */
+          (
             <InputPanel onGenerate={() => isMobile && setShowMobileSidebar(false)} />
           )}
         </div>

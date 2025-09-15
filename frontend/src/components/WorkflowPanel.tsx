@@ -22,13 +22,16 @@ export const WorkflowPanel: React.FC = () => {
       description: 'Building components with real-time explanations' 
     },
     { 
-      id: 'documenting', 
-      label: 'Documentation', 
-      description: 'Creating comprehensive usage guide' 
+      id: 'complete', 
+      label: 'Complete', 
+      description: 'Prototype ready for refinement and export' 
     }
   ];
 
   const getPhaseStatus = (phaseId: string) => {
+    if (phaseId === 'complete' && completedPhases.includes('generating') && !isGenerating) {
+      return 'completed';
+    }
     if (completedPhases.includes(phaseId)) return 'completed';
     if (currentPhase === phaseId && isGenerating) return 'active';
     return 'pending';
@@ -118,6 +121,18 @@ export const WorkflowPanel: React.FC = () => {
               {currentPhase === 'planning' && 'Creating detailed plan...'}
               {currentPhase === 'generating' && 'Generating components...'}
               {currentPhase === 'documenting' && 'Creating documentation...'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Completion Message */}
+      {!isGenerating && completedPhases.includes('generating') && (
+        <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
+          <div className="flex items-center">
+            <CheckCircle className="h-4 w-4 text-green-600 mr-3" />
+            <span className="text-sm text-green-700">
+              🎉 Prototype generated successfully! You can now refine it or export it.
             </span>
           </div>
         </div>

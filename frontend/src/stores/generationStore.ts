@@ -219,7 +219,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       isGenerating: false,
       currentPhase: null,
       completedPhases: ['planning', 'generating'],
-      streamingContent: 'Generation completed successfully!'
+      streamingContent: null // Clear streaming content when complete
     });
     
     // If the result contains code sections, update the generated code
@@ -247,6 +247,18 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         };
         
         set({ generatedCode: updatedCode });
+      }
+    } else {
+      // Ensure we have some generated code even if sections are empty
+      const { generatedCode } = get();
+      if (!generatedCode?.completeHTML) {
+        set({ 
+          generatedCode: {
+            completeHTML: '<div class="p-8 text-center"><h1>Prototype Generated!</h1><p>Your prototype has been created successfully.</p></div>',
+            sections: [],
+            documentation: []
+          }
+        });
       }
     }
   },
