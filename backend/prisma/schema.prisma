@@ -1,0 +1,118 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String
+  avatarUrl   String?  @map("avatar_url")
+  preferences Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  projects Project[]
+
+  @@map("users")
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  userId      String        @map("user_id")
+  name        String
+  description String?
+  prompt      String
+  preferences Json          @default("{}")
+  status      ProjectStatus @default(DRAFT)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generationPlans GenerationPlan[]
+  codeSections    CodeSection[]
+  generationLogs  GenerationLog[]
+
+  @@map("projects")
+}
+
+model GenerationPlan {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  planData  Json     @map("plan_data")
+  approved  Boolean  @default(false)
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("generation_plans")
+}
+
+model CodeSection {
+  id            String      @id @default(cuid())
+  projectId     String      @map("project_id")
+  sectionName   String      @map("section_name")
+  sectionType   SectionType @map("section_type")
+  codeContent   String      @map("code_content")
+  documentation String?
+  orderIndex    Int         @default(0) @map("order_index")
+  elementId     String?     @map("element_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("code_sections")
+}
+
+model GenerationLog {
+  id          String    @id @default(cuid())
+  projectId   String    @map("project_id")
+  phase       String
+  stepName    String    @map("step_name")
+  explanation String?
+  status      LogStatus
+  metadata    Json      @default("{}")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("generation_logs")
+}
+
+enum ProjectStatus {
+  DRAFT
+  PLANNING
+  GENERATING
+  COMPLETED
+  ERROR
+}
+
+enum SectionType {
+  HTML
+  CSS
+  JAVASCRIPT
+  COMPONENT
+  STYLE
+  SCRIPT
+}
+
+enum LogStatus {
+  STARTED
+  IN_PROGRESS
+  COMPLETED
+  ERROR
+}
