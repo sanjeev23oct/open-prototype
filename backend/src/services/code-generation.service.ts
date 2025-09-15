@@ -1,14 +1,24 @@
 import { LLMService } from './llm.service';
-import { WebSocketService } from '../websocket/websocket-server';
+import { WSServer } from '../websocket/websocket-server';
 import { GenerationPlan, ComponentPlan } from '../types/generation';
-import { CodeSection, GenerationPreferences } from '../types/database';
-import { PromptTemplates } from '../utils/prompt-templates';
-import { ComponentDocumentation } from '../types/generation';
+import { GenerationPlanData, ComponentPlan as LLMComponentPlan, GenerationPreferences as LLMGenerationPreferences } from '../types/llm';
+import { CodeSection } from '../types/database';
+import { WS_EVENTS } from '../types/websocket';
+import { randomUUID } from 'crypto';
+
+interface GenerationPreferences {
+  framework?: string;
+  styling?: string;
+  complexity?: string;
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+}
 
 export class CodeGenerationService {
   constructor(
     private llmService: LLMService,
-    private wsService: WebSocketService
+    private wsService: WSServer
   ) {}
 
   async generateCode(
@@ -20,13 +30,33 @@ export class CodeGenerationService {
     const codeSections: CodeSection[] = [];
     
     try {
+      console.log(`🚀 Starting code generation for project ${projectId}`);
+      
+      // Check WebSocket service
+      const connectedClients = this.wsService.getConnectedClients();
+      const projectClients = this.wsService.getProjectClients(projectId);
+      console.log(`🔌 WebSocket status: ${connectedClients} total clients, ${projectClients} in project ${projectId}`);
+      
       // Emit generation start
-      this.wsService.emitToUser(userId, 'generation:stream', {
+      const sentCount = this.wsService.sendToProject(projectId, WS_EVENTS.GENERATION_STREAM, {
         type: 'generating',
         content: 'Starting code generation...',
         isComplete: false
       });
+      
+      console.log(`📡 Sent start message to ${sentCount} clients`);
+      
+      // Also send to all clients as fallback
+      this.wsService.sendToAll(WS_EVENTS.GENERATION_STREAM, {
+        type: 'generating',
+        content: 'Starting code generation...',
+        isComplete: false,
+        projectId
+      });
 
+      // Wait a moment to ensure WebSocket client has joined
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       // Generate base structure first
       const baseStructure = await this.generateBaseStructure(preferences, projectId, userId);
       codeSections.push(...baseStructure);
@@ -34,8 +64,11 @@ export class CodeGenerationService {
       // Generate components one by one with streaming
       for (let i = 0; i < plan.components.length; i++) {
         const component = plan.components[i];
+        if (!component) continue;
         
-        this.wsService.emitToUser(userId, 'generation:stream', {
+        console.log(`🔧 Generating component: ${component.name}`);
+        
+        this.wsService.sendToProject(projectId, WS_EVENTS.GENERATION_STREAM, {
           type: 'generating',
           content: `Generating ${component.name}...`,
           elementId: component.id,
@@ -54,33 +87,64 @@ export class CodeGenerationService {
         codeSections.push(componentCode);
 
         // Emit element generated
-        this.wsService.emitToUser(userId, 'generation:element', {
+        this.wsService.sendToProject(projectId, WS_EVENTS.ELEMENT_GENERATED, {
           elementId: component.id,
           elementType: 'component',
           htmlContent: componentCode.codeContent,
           documentation: componentCode.documentation || '',
-          position: { section: component.name, order: i }
+          position: { 
+            sectionName: component.name, 
+            orderIndex: i 
+          }
         });
 
         // Small delay to show progress
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
       // Generate final organized HTML
+      console.log('🎯 Organizing final code sections');
       const finalHTML = await this.organizeCodeSections(codeSections, preferences);
       codeSections.push(finalHTML);
 
-      this.wsService.emitToUser(userId, 'generation:complete', {
+      // Send preview update
+      console.log('📡 Sending preview update with HTML length:', finalHTML.codeContent.length);
+      this.wsService.sendToProject(projectId, WS_EVENTS.PREVIEW_UPDATE, {
+        projectId,
+        htmlContent: finalHTML.codeContent,
+        elementId: 'complete-html'
+      });
+      
+      // Also send to all clients as fallback
+      this.wsService.sendToAll(WS_EVENTS.PREVIEW_UPDATE, {
+        projectId,
+        htmlContent: finalHTML.codeContent,
+        elementId: 'complete-html'
+      });
+
+      console.log('📡 Sending generation complete with', codeSections.length, 'code sections');
+      this.wsService.sendToProject(projectId, WS_EVENTS.GENERATION_COMPLETE, {
+        projectId,
+        codeSections,
+        message: 'Generation completed successfully!'
+      });
+      
+      // Also send to all clients as fallback
+      this.wsService.sendToAll(WS_EVENTS.GENERATION_COMPLETE, {
         projectId,
         codeSections,
         message: 'Generation completed successfully!'
       });
 
+      console.log(`✅ Code generation completed for project ${projectId}`);
       return codeSections;
     } catch (error) {
-      this.wsService.emitToUser(userId, 'generation:error', {
-        error: error.message,
-        projectId
+      console.error(`❌ Code generation error for project ${projectId}:`, error);
+      this.wsService.sendToProject(projectId, WS_EVENTS.GENERATION_ERROR, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        projectId,
+        recoverable: true,
+        suggestions: ['Try regenerating the component', 'Check your LLM configuration']
       });
       throw error;
     }
@@ -93,26 +157,40 @@ export class CodeGenerationService {
   ): Promise<CodeSection[]> {
     const sections: CodeSection[] = [];
 
-    // Generate base HTML structure
-    const htmlPrompt = `Create a base HTML5 structure with:
-- Semantic HTML5 elements
-- TailwindCSS CDN integration
-- Responsive meta tags
-- Clean, organized structure with clear sections
-- Comments for each major section`;
+    // Convert preferences to LLM format
+    const llmPreferences: LLMGenerationPreferences = {
+      outputType: 'html-js',
+      framework: 'vanilla',
+      styling: preferences.styling === 'tailwind' ? 'tailwind' : 'css',
+      responsive: true,
+      accessibility: true
+    };
 
-    const htmlResponse = await this.llmService.generateCompletion({
-      messages: [{ role: 'user', content: htmlPrompt }],
-      temperature: 0.3,
-      maxTokens: 1000
-    });
+    // Use the generateCodeStream method to get HTML structure
+    let htmlContent = '';
+    const mockPlan: GenerationPlanData = {
+      id: 'base-structure',
+      components: [],
+      architecture: {
+        structure: 'HTML5 semantic structure',
+        styling: 'TailwindCSS',
+        interactions: 'Vanilla JavaScript',
+        responsive: true
+      },
+      timeline: { totalMinutes: 5, phases: { planning: 1, generation: 3, documentation: 1 } },
+      dependencies: ['tailwindcss']
+    };
+
+    for await (const chunk of this.llmService.generateCodeStream(mockPlan, 'base-html', llmPreferences)) {
+      htmlContent += chunk;
+    }
 
     sections.push({
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       projectId,
       sectionName: 'base-html',
       sectionType: 'html',
-      codeContent: this.extractCodeFromResponse(htmlResponse.content),
+      codeContent: this.extractCodeFromResponse(htmlContent),
       documentation: 'Base HTML5 structure with semantic elements',
       orderIndex: 0,
       createdAt: new Date(),
@@ -129,23 +207,58 @@ export class CodeGenerationService {
     projectId: string,
     userId: string
   ): Promise<CodeSection> {
-    const prompt = PromptTemplates.createCodeGenerationPrompt(component, preferences);
-    
-    const response = await this.llmService.generateCompletion({
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.4,
-      maxTokens: 1500
-    });
+    // Convert component to LLM format
+    const llmComponent: LLMComponentPlan = {
+      id: component.id,
+      name: component.name,
+      type: this.mapComponentType(component.type),
+      description: component.description,
+      features: [], // Add default features
+      estimatedComplexity: component.estimatedComplexity
+    };
 
-    const codeContent = this.extractCodeFromResponse(response.content);
-    const documentation = this.extractDocumentationFromResponse(response.content);
+    // Convert preferences to LLM format
+    const llmPreferences: LLMGenerationPreferences = {
+      outputType: 'html-js',
+      framework: 'vanilla',
+      styling: preferences.styling === 'tailwind' ? 'tailwind' : 'css',
+      responsive: true,
+      accessibility: true
+    };
+
+    // Create a mock plan for the component
+    const mockPlan: GenerationPlanData = {
+      id: component.id,
+      components: [llmComponent],
+      architecture: {
+        structure: 'HTML5 semantic structure',
+        styling: preferences.styling || 'tailwind',
+        interactions: 'Vanilla JavaScript',
+        responsive: true
+      },
+      timeline: { totalMinutes: 5, phases: { planning: 1, generation: 3, documentation: 1 } },
+      dependencies: ['tailwindcss']
+    };
+
+    // Generate code using the stream method
+    let codeContent = '';
+    for await (const chunk of this.llmService.generateCodeStream(mockPlan, component.name, llmPreferences)) {
+      codeContent += chunk;
+    }
+
+    // Generate documentation
+    const documentation = await this.llmService.generateDocumentation(
+      codeContent,
+      component.name,
+      llmPreferences
+    );
 
     return {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       projectId,
       sectionName: component.name.toLowerCase().replace(/\s+/g, '-'),
       sectionType: this.inferSectionType(component.type),
-      codeContent,
+      codeContent: this.extractCodeFromResponse(codeContent),
       documentation,
       orderIndex: existingSections.length,
       createdAt: new Date(),
@@ -207,7 +320,7 @@ export class CodeGenerationService {
     organizedHTML += '\n</body>\n</html>';
 
     return {
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       projectId: sections[0]?.projectId || '',
       sectionName: 'complete-html',
       sectionType: 'html',
@@ -222,13 +335,28 @@ export class CodeGenerationService {
   private extractCodeFromResponse(content: string): string {
     // Extract code from markdown code blocks
     const codeMatch = content.match(/```(?:html|css|javascript|js)?\n([\s\S]*?)\n```/);
-    return codeMatch ? codeMatch[1].trim() : content.trim();
+    return codeMatch && codeMatch[1] ? codeMatch[1].trim() : content.trim();
   }
 
   private extractDocumentationFromResponse(content: string): string {
     // Extract text that's not in code blocks
     const withoutCode = content.replace(/```[\s\S]*?```/g, '');
     return withoutCode.trim();
+  }
+
+  private mapComponentType(type: string): 'header' | 'hero' | 'features' | 'form' | 'footer' | 'custom' {
+    switch (type) {
+      case 'layout':
+        return 'header';
+      case 'component':
+        return 'features';
+      case 'feature':
+        return 'features';
+      case 'utility':
+        return 'custom';
+      default:
+        return 'custom';
+    }
   }
 
   private inferSectionType(componentType: string): 'html' | 'style' | 'script' {

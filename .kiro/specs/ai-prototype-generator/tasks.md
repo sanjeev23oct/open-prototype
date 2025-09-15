@@ -77,7 +77,9 @@
 
 
 
-- [x] 6. Frontend Core Components
+- [ ] 6. Frontend Core Components
+
+
 
 
   - Create main application shell with responsive layout

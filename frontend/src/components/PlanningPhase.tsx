@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle, Clock, Edit3, Play, AlertCircle, BarChart3, Timeline } from 'lucide-react';
+import { CheckCircle, Clock, Edit3, Play, AlertCircle, BarChart3, Calendar } from 'lucide-react';
 import { GenerationPlan, ComponentPlan } from '../types/generation';
 import { useGenerationStore } from '../stores/generationStore';
 import { PlanDisplay } from './PlanDisplay';
@@ -28,7 +28,7 @@ export const PlanningPhase: React.FC<PlanningPhaseProps> = ({
 
   const views = [
     { id: 'overview' as const, label: 'Overview', icon: CheckCircle },
-    { id: 'timeline' as const, label: 'Timeline', icon: Timeline },
+    { id: 'timeline' as const, label: 'Timeline', icon: Calendar },
     { id: 'complexity' as const, label: 'Analysis', icon: BarChart3 },
   ];
 
@@ -106,9 +106,5 @@ export const PlanningPhase: React.FC<PlanningPhaseProps> = ({
         onSave={handleModifyPlan}
       />
     </div>
-  );
-};
-
-
   );
 };

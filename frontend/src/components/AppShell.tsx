@@ -7,6 +7,7 @@ import { ModelConfigPanel } from './ModelConfigPanel';
 import { PlanningPhase } from './PlanningPhase';
 import { StreamingGeneration } from './StreamingGeneration';
 import { useGenerationStore } from '../stores/generationStore';
+import { useWebSocket } from '../providers/WebSocketProvider';
 import { useResponsive } from '../hooks/useResponsive';
 
 export const AppShell: React.FC = () => {
@@ -21,6 +22,8 @@ export const AppShell: React.FC = () => {
     startGeneration,
     approvePlan 
   } = useGenerationStore();
+  
+  const { wsService, isConnected } = useWebSocket();
   const currentModel = 'DeepSeek Chat'; // TODO: Get from model store
 
   return (
@@ -37,9 +40,15 @@ export const AppShell: React.FC = () => {
           
           <div className="flex items-center space-x-4">
             {!isMobile && (
-              <div className="text-sm text-gray-600">
-                Model: <span className="font-medium">{currentModel}</span>
-              </div>
+              <>
+                <div className="text-sm text-gray-600">
+                  Model: <span className="font-medium">{currentModel}</span>
+                </div>
+                <div className="flex items-center text-sm text-gray-600">
+                  <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                  {isConnected ? 'Connected' : 'Disconnected'}
+                </div>
+              </>
             )}
             
             <button
@@ -74,13 +83,13 @@ export const AppShell: React.FC = () => {
               ? 'w-2/5' 
               : 'w-1/3'
         } border-r border-gray-200 bg-white overflow-y-auto`}>
-          {currentPlan && currentPhase === 'planning' ? (
+          {currentPlan && currentPhase !== 'generating' && currentPhase !== 'documenting' ? (
             <div className="p-6">
               <PlanningPhase
                 plan={currentPlan}
                 onApprove={async () => {
                   await approvePlan();
-                  await startGeneration();
+                  await startGeneration(wsService);
                   if (isMobile) setShowMobileSidebar(false);
                 }}
                 onModify={(modifications) => {

@@ -73,33 +73,41 @@ export class WebSocketService {
   private handleMessage(event: MessageEvent): void {
     try {
       const message = JSON.parse(event.data);
+      console.log('🔌 Received WebSocket message:', message.type, message.payload);
       
       switch (message.type) {
         case 'generation:progress':
+          console.log('📊 Progress update:', message.payload);
           this.handlers.onProgress?.(message.payload);
           break;
           
         case 'generation:stream':
+          console.log('📡 Stream update:', message.payload);
           this.handlers.onStream?.(message.payload);
           break;
           
         case 'element:generated':
+          console.log('🎨 Element generated:', message.payload);
           this.handlers.onElementGenerated?.(message.payload);
           break;
           
         case 'edit:patch':
+          console.log('🔧 Patch update:', message.payload);
           this.handlers.onPatchUpdate?.(message.payload);
           break;
           
         case 'generation:error':
+          console.log('❌ Generation error:', message.payload);
           this.handlers.onError?.(message.payload);
           break;
           
         case 'preview:update':
+          console.log('👁️ Preview update:', message.payload);
           this.handlers.onPreviewUpdate?.(message.payload);
           break;
           
         case 'generation:complete':
+          console.log('✅ Generation complete:', message.payload);
           this.handlers.onComplete?.(message.payload);
           break;
           
@@ -107,11 +115,15 @@ export class WebSocketService {
           console.log('🔌 Connection confirmed:', message.payload);
           break;
           
+        case 'project:joined':
+          console.log('📂 Project joined:', message.payload);
+          break;
+          
         default:
-          console.log('🔌 Unknown message type:', message.type);
+          console.log('🔌 Unknown message type:', message.type, message.payload);
       }
     } catch (error) {
-      console.error('🔌 Failed to parse WebSocket message:', error);
+      console.error('🔌 Failed to parse WebSocket message:', error, event.data);
     }
   }
 

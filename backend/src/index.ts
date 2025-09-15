@@ -9,7 +9,7 @@ import { WSServer } from './websocket/websocket-server.js';
 import { WebSocketHandlers } from './websocket/websocket-handlers.js';
 import { WebSocketIntegrationService } from './services/websocket-integration.service.js';
 import { WebSocketRouter } from './websocket/websocket-router.js';
-import { generationRoutes } from './routes/generation.routes.js';
+import { generationRoutes, initializeGenerationServices } from './routes/generation.routes.js';
 import { llmRoutes } from './routes/llm.routes.js';
 import { projectRoutes } from './routes/project.routes.js';
 import { errorHandler } from './middleware/error-handler.js';
@@ -29,7 +29,7 @@ app.use(helmet({
 }));
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:3003'],
   credentials: true
 }));
 
@@ -84,7 +84,9 @@ let wsIntegration: WebSocketIntegrationService;
 let wsRouter: WebSocketRouter;
 
 try {
-  const WS_PORT = parseInt(process.env.WS_PORT || '3002');
+  const WS_PORT = parseInt(process.env.WS_PORT || '3004');
+  
+  console.log(`🔌 Initializing WebSocket server on port ${WS_PORT}...`);
   
   // Create WebSocket server
   wsServer = new WSServer(WS_PORT);
@@ -108,9 +110,13 @@ try {
     }
   });
   
-  console.log(`🔌 WebSocket server initialized on port ${WS_PORT}`);
+  // Initialize generation services with WebSocket
+  initializeGenerationServices(wsServer);
+  
+  console.log(`✅ WebSocket server initialized on port ${WS_PORT}`);
 } catch (error) {
   console.error('❌ Failed to initialize WebSocket server:', error);
+  console.error('Error details:', error);
 }
 
 // Start server

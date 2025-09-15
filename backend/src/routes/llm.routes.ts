@@ -1,12 +1,24 @@
 import { Router } from 'express';
 import { LLMConfigService } from '../services/llm-config.service.js';
 import { LLMService } from '../services/llm.service.js';
+import { LLMConfig } from '../types/llm.js';
 
 const router = Router();
 
 // Initialize services
-const configService = new LLMConfigService();
-const llmService = new LLMService();
+const configService = LLMConfigService.getInstance();
+
+// Create default LLM config
+const defaultLLMConfig: LLMConfig = {
+  gatewayUrl: process.env.LITELLM_GATEWAY_URL || 'http://localhost:4000',
+  apiKey: process.env.LITELLM_API_KEY || '',
+  model: process.env.DEFAULT_MODEL || 'gpt-3.5-turbo',
+  maxTokens: 4000,
+  temperature: 0.7,
+  stream: false
+};
+
+const llmService = new LLMService(defaultLLMConfig);
 
 // Get available models
 router.get('/models', async (req, res) => {

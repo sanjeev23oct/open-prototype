@@ -1,8 +1,6 @@
 import { LLMService } from './llm.service';
 import { GenerationPlan, ComponentPlan, ArchitecturePlan } from '../types/generation';
 import { GenerationPreferences } from '../types/database';
-import { PromptTemplates } from '../utils/prompt-templates';
-import { GenerationPlan, ComponentPlan, ArchitecturePlan } from '../types/generation';
 
 export class PlanGenerationService {
   constructor(private llmService: LLMService) {}
@@ -12,22 +10,37 @@ export class PlanGenerationService {
     preferences: GenerationPreferences
   ): Promise<GenerationPlan> {
     try {
-      const planPrompt = PromptTemplates.createPlanningPrompt(prompt, preferences);
-      
-      const response = await this.llmService.generateCompletion({
-        messages: [{ role: 'user', content: planPrompt }],
-        temperature: 0.7,
-        maxTokens: 2000,
-        stream: false
-      });
+      // Convert GenerationPreferences to the format expected by LLMService
+      const llmPreferences = {
+        outputType: preferences.outputType || 'website',
+        framework: preferences.framework || 'vanilla',
+        styling: preferences.styling || 'tailwind',
+        responsive: preferences.responsive !== false,
+        accessibility: preferences.accessibility !== false
+      };
 
-      const planData = this.parsePlanResponse(response.content);
+      const planData = await this.llmService.generatePlan(prompt, llmPreferences);
       
       return {
-        id: crypto.randomUUID(),
-        components: planData.components,
-        architecture: planData.architecture,
-        timeline: planData.timeline,
+        id: planData.id,
+        components: planData.components.map(comp => ({
+          id: comp.id,
+          name: comp.name,
+          type: this.mapComponentType(comp.type),
+          description: comp.description,
+          dependencies: [],
+          estimatedComplexity: comp.estimatedComplexity
+        })),
+        architecture: {
+          framework: llmPreferences.framework,
+          styling: llmPreferences.styling,
+          structure: planData.architecture.structure,
+          responsive: planData.architecture.responsive
+        },
+        timeline: {
+          estimatedMinutes: planData.timeline.totalMinutes,
+          phases: Object.keys(planData.timeline.phases)
+        },
         dependencies: planData.dependencies || [],
         approved: false,
         createdAt: new Date()
@@ -103,6 +116,22 @@ export class PlanGenerationService {
         phases: ['Planning', 'Generation', 'Documentation']
       }
     };
+  }
+
+  private mapComponentType(llmType: string): 'layout' | 'component' | 'feature' | 'utility' {
+    const lower = llmType.toLowerCase();
+    
+    if (lower.includes('header') || lower.includes('footer') || lower === 'layout') {
+      return 'layout';
+    }
+    if (lower.includes('form') || lower.includes('button') || lower.includes('card') || lower === 'component') {
+      return 'component';
+    }
+    if (lower.includes('hero') || lower.includes('features') || lower === 'feature') {
+      return 'feature';
+    }
+    
+    return 'utility';
   }
 
   private inferComponentType(text: string): 'layout' | 'component' | 'feature' | 'utility' {

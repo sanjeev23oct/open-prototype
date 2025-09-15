@@ -48,13 +48,13 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
     setError,
     addGeneratedElement,
     updatePreview,
+    completeGeneration,
   } = useGenerationStore();
 
   useEffect(() => {
     // Determine WebSocket URL
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = process.env.NODE_ENV === 'development' ? 'localhost:3001' : window.location.host;
-    const wsUrl = `${protocol}//${host}`;
+    const wsUrl = import.meta.env.VITE_WS_URL || 
+      (import.meta.env.DEV ? 'ws://localhost:3004' : `ws://${window.location.host}`);
 
     // Create WebSocket service
     wsServiceRef.current = new WebSocketService(wsUrl);
@@ -67,7 +67,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
       },
 
       onStream: (update: StreamingUpdate) => {
-        console.log('📡 Streaming update:', update);
+        console.log('📡 Streaming update received in provider:', update);
         updateStreamingContent(update.content);
       },
 
@@ -87,24 +87,25 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
       },
 
       onPreviewUpdate: (preview: PreviewRefresh) => {
-        console.log('👁️ Preview update:', preview);
+        console.log('👁️ Preview update received in provider:', preview);
         updatePreview(preview);
       },
 
       onComplete: (result: any) => {
         console.log('✅ Generation complete:', result);
-        updateStreamingContent('Generation completed successfully!');
+        completeGeneration(result);
       },
     };
 
     // Connect to WebSocket
+    console.log('🔌 Attempting WebSocket connection to:', wsUrl);
     wsServiceRef.current.connect(handlers)
       .then(() => {
         setIsConnected(true);
-        console.log('🔌 WebSocket connection established');
+        console.log('🔌 WebSocket connection established to:', wsUrl);
       })
       .catch((error) => {
-        console.error('🔌 WebSocket connection failed:', error);
+        console.error('🔌 WebSocket connection failed to:', wsUrl, error);
         setError('Failed to connect to server');
       });
 
@@ -116,7 +117,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
       }
       setIsConnected(false);
     };
-  }, [updateProgress, updateStreamingContent, setError, addGeneratedElement, updatePreview]);
+  }, [updateProgress, updateStreamingContent, setError, addGeneratedElement, updatePreview, completeGeneration]);
 
   // Monitor connection status
   useEffect(() => {

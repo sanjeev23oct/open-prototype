@@ -39,6 +39,8 @@ export const PreviewPanel: React.FC = () => {
     if (!iframeRef.current) return;
 
     const htmlContent = generatedCode?.completeHTML || getPreviewHTML();
+    console.log('🖼️ Updating iframe with content:', htmlContent.substring(0, 200) + '...');
+    
     const doc = iframeRef.current.contentDocument;
     
     if (doc) {
@@ -149,6 +151,13 @@ export const PreviewPanel: React.FC = () => {
 
   // Auto-refresh when content changes
   useEffect(() => {
+    console.log('🔄 Preview panel effect triggered:', {
+      hasGeneratedCode: !!generatedCode,
+      hasCompleteHTML: !!generatedCode?.completeHTML,
+      streamingContent,
+      isGenerating,
+      currentPhase
+    });
     updateIframeContent();
     setLastUpdateTime(new Date());
   }, [generatedCode, streamingContent, isGenerating, currentPhase]);
@@ -176,7 +185,45 @@ export const PreviewPanel: React.FC = () => {
 
   const viewportSize = getViewportSize();
 
-  const PreviewContent = () => (
+  const getPreviewContent = () => {
+    if (isGenerating && currentPhase === 'generating' && streamingContent) {
+      return (
+        <div className="flex items-center justify-center h-full bg-white">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">{streamingContent}</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (!generatedCode?.completeHTML) {
+      return (
+        <div className="flex items-center justify-center h-full bg-white">
+          <div className="text-center">
+            <Monitor className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              Preview will appear here
+            </h3>
+            <p className="text-gray-500">
+              Generate a prototype to see the live preview
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <iframe
+        ref={iframeRef}
+        className="w-full h-full border-0"
+        title="Generated Prototype Preview"
+        sandbox="allow-scripts allow-same-origin"
+      />
+    );
+  };
+
+  return (
     <div className={`h-full flex flex-col bg-white ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}>
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
@@ -303,125 +350,6 @@ export const PreviewPanel: React.FC = () => {
           </div>
         </div>
       </div>
-        doc.open();
-        doc.write(generatedCode.completeHTML);
-        doc.close();
-      }
-    }
-  }, [generatedCode?.completeHTML]);
-
-  const getPreviewContent = () => {
-    if (isGenerating && currentPhase === 'generating' && streamingContent) {
-      return (
-        <div className="flex items-center justify-center h-full bg-white">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">{streamingContent}</p>
-          </div>
-        </div>
-      );
-    }
-
-    if (!generatedCode?.completeHTML) {
-      return (
-        <div className="flex items-center justify-center h-full bg-white">
-          <div className="text-center">
-            <Monitor className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Preview will appear here
-            </h3>
-            <p className="text-gray-500">
-              Generate a prototype to see the live preview
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <iframe
-        ref={iframeRef}
-        className="w-full h-full border-0"
-        title="Generated Prototype Preview"
-        sandbox="allow-scripts allow-same-origin"
-      />
-    );
-  };
-
-  return (
-    <div className="h-full flex flex-col">
-      {/* Preview Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Live Preview</h2>
-          
-          <div className="flex items-center space-x-4">
-            {/* Preview Mode Selector */}
-            <div className="flex items-center space-x-1 bg-gray-100 rounded-lg p-1">
-              {previewModes.map((mode) => {
-                const Icon = mode.icon;
-                return (
-                  <button
-                    key={mode.id}
-                    onClick={() => setPreviewMode(mode.id)}
-                    className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                      previewMode === mode.id
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                    title={mode.label}
-                  >
-                    <Icon className="h-4 w-4 mr-1.5" />
-                    {mode.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={refreshPreview}
-                disabled={!generatedCode?.completeHTML || isRefreshing}
-                className="flex items-center px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Refresh Preview"
-              >
-                <RotateCcw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              </button>
-              
-              <button
-                onClick={openInNewTab}
-                disabled={!generatedCode?.completeHTML}
-                className="flex items-center px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Open in New Tab"
-              >
-                <ExternalLink className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Preview Content */}
-      <div className="flex-1 bg-gray-100 p-6">
-        <div 
-          className="h-full bg-white rounded-lg shadow-sm overflow-hidden mx-auto transition-all duration-300"
-          style={{ 
-            maxWidth: previewModes.find(m => m.id === previewMode)?.width,
-            width: previewMode === 'desktop' ? '100%' : previewModes.find(m => m.id === previewMode)?.width
-          }}
-        >
-          {getPreviewContent()}
-        </div>
-      </div>
-    </div>
-  );
-};       
-       <Download className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
 
       {/* Content Area */}
       <div className="flex-1 overflow-hidden">
@@ -454,12 +382,7 @@ export const PreviewPanel: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  <iframe
-                    ref={iframeRef}
-                    className="w-full h-full border-0"
-                    title="Generated Prototype Preview"
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                  />
+                  getPreviewContent()
                 )}
               </div>
             </div>
@@ -490,11 +413,5 @@ export const PreviewPanel: React.FC = () => {
         )}
       </div>
     </div>
-  );
-
-  return isFullscreen ? (
-    <PreviewContent />
-  ) : (
-    <PreviewContent />
   );
 };
