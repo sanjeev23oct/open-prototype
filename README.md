@@ -48,17 +48,23 @@ An AI-powered code generator that creates preview-ready HTML5 + JavaScript proto
 - **Database**: PostgreSQL + Prisma ORM
 - **AI**: LiteLLM Gateway integration
 
-## Quick Start
+## 🚀 Quick Start
 
-1. **Install dependencies**
+**New to the project?** Check out our [Quick Start Guide](QUICK_START.md) for a 5-minute setup!
+
+### Development Setup
+
+1. **Clone and install**
    ```bash
+   git clone https://github.com/sanjeev23oct/open-prototype.git
+   cd open-prototype
    npm run install:all
    ```
 
-2. **Set up environment**
+2. **Configure environment**
    ```bash
    cp .env.example .env
-   # Edit .env with your database and LiteLLM configuration
+   # Add your database URL and AI provider API keys
    ```
 
 3. **Set up database**
@@ -67,14 +73,20 @@ An AI-powered code generator that creates preview-ready HTML5 + JavaScript proto
    npm run db:seed
    ```
 
-4. **Start development servers**
+4. **Start development**
    ```bash
    npm run dev
    ```
 
-   This starts:
-   - Frontend: http://localhost:3000
-   - Backend: http://localhost:3001
+   🎉 Open http://localhost:3000 and start creating!
+
+### Docker Setup
+
+```bash
+docker-compose up -d
+```
+
+That's it! The application will be available at http://localhost:3000.
 
 ## Project Structure
 
