@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Monitor, Smartphone, Tablet, RefreshCw, ExternalLink, Download, Eye, Code, Maximize2 } from 'lucide-react';
+import { Monitor, Smartphone, Tablet, RefreshCw, ExternalLink, Download, Eye, Code, Maximize2, RotateCcw } from 'lucide-react';
 import { useGenerationStore } from '../stores/generationStore';
 import { useResponsive } from '../hooks/useResponsive';
 import { LoadingSpinner } from './LoadingSpinner';
@@ -38,19 +38,60 @@ export const PreviewPanel: React.FC = () => {
   const updateIframeContent = () => {
     if (!iframeRef.current) return;
 
-    const htmlContent = generatedCode?.completeHTML || getPreviewHTML();
+    const htmlContent = getPreviewHTML();
     console.log('🖼️ Updating iframe with content:', htmlContent.substring(0, 200) + '...');
     
     const doc = iframeRef.current.contentDocument;
     
     if (doc) {
-      doc.open();
-      doc.write(htmlContent);
-      doc.close();
+      try {
+        // Use a more reliable method to update iframe content
+        // First, create a unique identifier to prevent conflicts
+        const uniqueId = `content-${Date.now()}`;
+        
+        // Clear and rewrite the document
+        doc.open();
+        doc.write('');
+        doc.close();
+        
+        // Wait a bit then write the new content
+        setTimeout(() => {
+          if (doc && iframeRef.current) {
+            doc.open();
+            // Add a unique identifier to prevent conflicts
+            const modifiedContent = htmlContent.replace(
+              /<body([^>]*)>/i, 
+              `<body$1 data-content-id="${uniqueId}">`
+            );
+            doc.write(modifiedContent);
+            doc.close();
+          }
+        }, 50);
+      } catch (error) {
+        console.error('Failed to update iframe content:', error);
+        // Fallback: try to reload the iframe
+        if (iframeRef.current) {
+          iframeRef.current.src = 'about:blank';
+          setTimeout(() => {
+            if (iframeRef.current) {
+              iframeRef.current.src = '';
+              updateIframeContent();
+            }
+          }, 100);
+        }
+      }
     }
   };
 
   const getPreviewHTML = () => {
+    // First check if we have locally stored HTML (from surgical edits)
+    const projectId = 'current-project'; // For MVP, use a fixed project ID
+    const storedHTML = localStorage.getItem(`project_${projectId}_html`);
+    
+    if (storedHTML) {
+      return storedHTML;
+    }
+
     if (isGenerating && streamingContent) {
       return `
         <!DOCTYPE html>
@@ -89,6 +130,8 @@ export const PreviewPanel: React.FC = () => {
     }
 
     if (generatedCode?.completeHTML) {
+      // Store the generated HTML for future surgical edits
+      localStorage.setItem(`project_${projectId}_html`, generatedCode.completeHTML);
       return generatedCode.completeHTML;
     }
 
@@ -124,7 +167,7 @@ export const PreviewPanel: React.FC = () => {
   };
 
   const downloadHTML = () => {
-    const htmlContent = generatedCode?.completeHTML || getPreviewHTML();
+    const htmlContent = getPreviewHTML();
     const blob = new Blob([htmlContent], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -134,6 +177,12 @@ export const PreviewPanel: React.FC = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const clearStoredContent = () => {
+    const projectId = 'current-project';
+    localStorage.removeItem(`project_${projectId}_html`);
+    refreshPreview();
   };
 
   const openInNewTab = () => {
@@ -218,7 +267,7 @@ export const PreviewPanel: React.FC = () => {
         ref={iframeRef}
         className="w-full h-full border-0"
         title="Generated Prototype Preview"
-        sandbox="allow-scripts allow-same-origin"
+        sandbox="allow-scripts allow-same-origin allow-modals allow-popups"
       />
     );
   };
@@ -346,6 +395,15 @@ export const PreviewPanel: React.FC = () => {
               title="Download HTML"
             >
               <Download className="h-4 w-4" />
+            </button>
+            
+            {/* Debug button to clear stored content */}
+            <button
+              onClick={clearStoredContent}
+              className="p-2 text-red-600 hover:text-red-900 hover:bg-red-100 rounded-md transition-colors"
+              title="Clear Stored Edits (Debug)"
+            >
+              <RotateCcw className="h-4 w-4" />
             </button>
           </div>
         </div>

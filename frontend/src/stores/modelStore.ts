@@ -23,7 +23,7 @@ interface ModelState {
 }
 
 const defaultConfig: LLMConfig = {
-  gatewayUrl: 'https://api.litellm.ai/v1',
+  gatewayUrl: 'https://api.deepseek.com/v1',
   model: 'deepseek-chat',
   temperature: 0.7,
   maxTokens: 4000

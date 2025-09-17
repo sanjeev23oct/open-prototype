@@ -1,7 +1,7 @@
 export interface LLMConfig {
   gatewayUrl: string;
   model: string;
-  apiKey?: string;
+  apiKey?: string | undefined;
   temperature: number;
   maxTokens: number;
   stream?: boolean;

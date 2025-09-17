@@ -136,6 +136,37 @@ router.get('/:id/sections', async (req, res) => {
   }
 });
 
+// Add code section to project
+router.post('/:id/sections', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { sectionName, sectionType, codeContent, documentation } = req.body;
+    
+    if (!sectionName || !sectionType || !codeContent) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: sectionName, sectionType, codeContent' 
+      });
+    }
+
+    const section = await codeSectionRepo.create({
+      projectId: id,
+      sectionName,
+      sectionType,
+      codeContent,
+      documentation,
+      orderIndex: 0
+    });
+    
+    res.status(201).json(section);
+  } catch (error) {
+    console.error('Create section error:', error);
+    res.status(500).json({ 
+      error: 'Failed to create code section',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Get complete HTML for project
 router.get('/:id/html', async (req, res) => {
   try {

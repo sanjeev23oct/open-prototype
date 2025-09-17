@@ -39,19 +39,47 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({ className = '' }
     loadSavedProjects();
   }, []);
 
-  const loadSavedProjects = () => {
+  const loadSavedProjects = async () => {
     try {
-      const saved = localStorage.getItem('ai-prototype-projects');
-      if (saved) {
-        const projects = JSON.parse(saved).map((p: any) => ({
-          ...p,
-          createdAt: new Date(p.createdAt),
-          updatedAt: new Date(p.updatedAt)
-        }));
-        setSavedProjects(projects);
+      // Load from backend API instead of localStorage
+      const response = await fetch('/api/projects');
+      if (!response.ok) {
+        throw new Error('Failed to fetch projects');
       }
+      
+      const projects = await response.json();
+      const formattedProjects = projects.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description || '',
+        createdAt: new Date(p.createdAt),
+        updatedAt: new Date(p.updatedAt),
+        size: p.prompt?.length || 0,
+        starred: false, // TODO: Add starred field to backend
+        tags: [], // TODO: Add tags field to backend
+        generatedCode: null, // Will be loaded when needed
+        plan: null, // Will be loaded when needed
+        status: p.status
+      }));
+      setSavedProjects(formattedProjects);
     } catch (err) {
       console.error('Failed to load saved projects:', err);
+      error('Failed to load projects from server');
+      
+      // Fallback to localStorage for backward compatibility
+      try {
+        const saved = localStorage.getItem('ai-prototype-projects');
+        if (saved) {
+          const projects = JSON.parse(saved).map((p: any) => ({
+            ...p,
+            createdAt: new Date(p.createdAt),
+            updatedAt: new Date(p.updatedAt)
+          }));
+          setSavedProjects(projects);
+        }
+      } catch (localErr) {
+        console.error('Failed to load from localStorage:', localErr);
+      }
     }
   };
 
@@ -64,7 +92,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({ className = '' }
     }
   };
 
-  const handleSaveProject = () => {
+  const handleSaveProject = async () => {
     if (!generatedCode?.completeHTML) {
       error('No code to save');
       return;
@@ -75,48 +103,163 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({ className = '' }
       return;
     }
 
-    const newProject: SavedProject = {
-      id: `project-${Date.now()}`,
-      name: projectName.trim(),
-      description: projectDescription.trim(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      size: generatedCode.completeHTML.length,
-      starred: false,
-      tags: [],
-      generatedCode,
-      plan: currentPlan
-    };
-
-    const updatedProjects = [...savedProjects, newProject];
-    setSavedProjects(updatedProjects);
-    saveProjectsToStorage(updatedProjects);
-
-    setProjectName('');
-    setProjectDescription('');
-    setShowSaveModal(false);
-    success(`Project "${newProject.name}" saved successfully`);
-  };
-
-  const handleLoadProject = (project: SavedProject) => {
     try {
-      loadProject(project.generatedCode, project.plan);
-      setShowLoadModal(false);
-      success(`Project "${project.name}" loaded successfully`);
-    } catch (err) {
-      error('Failed to load project');
+      // Save to backend API
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: projectName.trim(),
+          description: projectDescription.trim(),
+          prompt: `Generated prototype: ${projectName.trim()}`, // TODO: Store actual prompt
+          preferences: currentPlan?.preferences || {}
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save project');
+      }
+
+      const savedProject = await response.json();
+
+      // Save the generated code sections
+      if (generatedCode?.completeHTML) {
+        await fetch(`/api/projects/${savedProject.id}/sections`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sectionName: 'complete-html',
+            sectionType: 'HTML',
+            codeContent: generatedCode.completeHTML,
+            documentation: 'Complete HTML output from AI generation'
+          })
+        });
+      }
+
+      // Reload projects list
+      await loadSavedProjects();
+
+      setProjectName('');
+      setProjectDescription('');
+      setShowSaveModal(false);
+      success(`Project "${savedProject.name}" saved successfully`);
+    } catch (err: any) {
+      console.error('Failed to save project:', err);
+      error(err.message || 'Failed to save project');
+      
+      // Fallback to localStorage
+      const newProject: SavedProject = {
+        id: `project-${Date.now()}`,
+        name: projectName.trim(),
+        description: projectDescription.trim(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        size: generatedCode.completeHTML.length,
+        starred: false,
+        tags: [],
+        generatedCode,
+        plan: currentPlan
+      };
+
+      const updatedProjects = [...savedProjects, newProject];
+      setSavedProjects(updatedProjects);
+      saveProjectsToStorage(updatedProjects);
+      success(`Project "${newProject.name}" saved locally`);
     }
   };
 
-  const handleDeleteProject = (projectId: string) => {
+  const handleLoadProject = async (project: SavedProject) => {
+    try {
+      // Load project data from backend if it's a server project
+      if (project.id.startsWith('project-')) {
+        // This is a localStorage project, load directly
+        if (project.generatedCode) {
+          // Use the generation store's setGeneratedCode method
+          const { setGeneratedCode, setCurrentPlan } = useGenerationStore.getState();
+          setGeneratedCode(project.generatedCode);
+          if (project.plan) {
+            setCurrentPlan(project.plan);
+          }
+          setShowLoadModal(false);
+          success(`Project "${project.name}" loaded successfully`);
+          return;
+        }
+      }
+      
+      // Load from backend API
+      const response = await fetch(`/api/projects/${project.id}/html`);
+      if (!response.ok) {
+        throw new Error('Failed to load project HTML');
+      }
+      
+      const htmlContent = await response.text();
+      
+      // Load project details
+      const projectResponse = await fetch(`/api/projects/${project.id}`);
+      const projectData = await projectResponse.json();
+      
+      // Update generation store
+      const { setGeneratedCode, setCurrentPlan } = useGenerationStore.getState();
+      setGeneratedCode({
+        completeHTML: htmlContent,
+        sections: [],
+        metadata: {
+          projectId: project.id,
+          projectName: project.name
+        }
+      });
+      
+      // Set basic plan info
+      setCurrentPlan({
+        id: project.id,
+        title: project.name,
+        description: project.description,
+        preferences: projectData.preferences || {}
+      });
+      
+      setShowLoadModal(false);
+      success(`Project "${project.name}" loaded successfully`);
+    } catch (err: any) {
+      console.error('Failed to load project:', err);
+      error(err.message || 'Failed to load project');
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
     const project = savedProjects.find(p => p.id === projectId);
     if (!project) return;
 
     if (confirm(`Are you sure you want to delete "${project.name}"?`)) {
-      const updatedProjects = savedProjects.filter(p => p.id !== projectId);
-      setSavedProjects(updatedProjects);
-      saveProjectsToStorage(updatedProjects);
-      success(`Project "${project.name}" deleted`);
+      try {
+        // Delete from backend if it's a server project
+        if (!projectId.startsWith('project-')) {
+          const response = await fetch(`/api/projects/${projectId}`, {
+            method: 'DELETE'
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to delete project from server');
+          }
+        }
+        
+        // Remove from local state
+        const updatedProjects = savedProjects.filter(p => p.id !== projectId);
+        setSavedProjects(updatedProjects);
+        
+        // Update localStorage for local projects
+        if (projectId.startsWith('project-')) {
+          saveProjectsToStorage(updatedProjects);
+        }
+        
+        success(`Project "${project.name}" deleted`);
+      } catch (err: any) {
+        console.error('Failed to delete project:', err);
+        error(err.message || 'Failed to delete project');
+      }
     }
   };
 

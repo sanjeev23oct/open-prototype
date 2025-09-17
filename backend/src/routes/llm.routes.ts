@@ -1,29 +1,15 @@
 import { Router } from 'express';
-import { LLMConfigService } from '../services/llm-config.service.js';
-import { LLMService } from '../services/llm.service.js';
-import { LLMConfig } from '../types/llm.js';
+import { LLMFactory } from '../services/llm-factory.service.js';
 
 const router = Router();
 
-// Initialize services
-const configService = LLMConfigService.getInstance();
-
-// Create default LLM config
-const defaultLLMConfig: LLMConfig = {
-  gatewayUrl: process.env.LITELLM_GATEWAY_URL || 'http://localhost:4000',
-  apiKey: process.env.LITELLM_API_KEY || '',
-  model: process.env.DEFAULT_MODEL || 'gpt-3.5-turbo',
-  maxTokens: 4000,
-  temperature: 0.7,
-  stream: false
-};
-
-const llmService = new LLMService(defaultLLMConfig);
+// Initialize services using factory
+const llmFactory = LLMFactory.getInstance();
 
 // Get available models
 router.get('/models', async (req, res) => {
   try {
-    const models = await configService.getAvailableModels();
+    const models = llmFactory.getAvailableModels();
     res.json(models);
   } catch (error) {
     console.error('Get models error:', error);
@@ -46,7 +32,7 @@ router.put('/config', async (req, res) => {
       });
     }
 
-    await configService.updateConfig(config);
+    llmFactory.updateConfig(config);
     
     res.json({ 
       message: 'Configuration updated successfully',
@@ -69,17 +55,20 @@ router.put('/config', async (req, res) => {
 // Test LLM connection
 router.post('/test', async (req, res) => {
   try {
-    const config = req.body;
+    const testResult = await llmFactory.testConnection();
     
-    // Test connection with provided config
-    const testResult = await llmService.testConnection(config);
-    
-    res.json({ 
-      success: true,
-      message: 'Connection test successful',
-      model: config.model,
-      responseTime: testResult.responseTime
-    });
+    if (testResult.success) {
+      res.json({ 
+        success: true,
+        message: 'Connection test successful'
+      });
+    } else {
+      res.status(400).json({ 
+        success: false,
+        error: 'Connection test failed',
+        message: testResult.error
+      });
+    }
   } catch (error) {
     console.error('Connection test error:', error);
     res.status(400).json({ 
@@ -90,50 +79,21 @@ router.post('/test', async (req, res) => {
   }
 });
 
-// Stream chat completion (for testing)
-router.post('/stream', async (req, res) => {
+// Health check
+router.get('/health', async (req, res) => {
   try {
-    const { messages, model, temperature, maxTokens } = req.body;
+    const healthResult = await llmFactory.healthCheck();
     
-    if (!messages || !Array.isArray(messages)) {
-      return res.status(400).json({ 
-        error: 'Missing or invalid messages array' 
-      });
-    }
-
-    // Set up streaming response
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-
-    const stream = await llmService.generateStreamingCompletion({
-      messages,
-      model,
-      temperature: temperature || 0.7,
-      maxTokens: maxTokens || 1000,
-      stream: true
+    res.json({
+      status: healthResult.status,
+      details: healthResult.details,
+      timestamp: new Date().toISOString()
     });
-
-    // Handle streaming response
-    stream.on('data', (chunk) => {
-      res.write(`data: ${JSON.stringify(chunk)}\n\n`);
-    });
-
-    stream.on('end', () => {
-      res.write('data: [DONE]\n\n');
-      res.end();
-    });
-
-    stream.on('error', (error) => {
-      console.error('Streaming error:', error);
-      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
-      res.end();
-    });
-
   } catch (error) {
-    console.error('Stream error:', error);
+    console.error('Health check error:', error);
     res.status(500).json({ 
-      error: 'Failed to start stream',
+      status: 'unhealthy',
+      error: 'Health check failed',
       message: error instanceof Error ? error.message : 'Unknown error'
     });
   }

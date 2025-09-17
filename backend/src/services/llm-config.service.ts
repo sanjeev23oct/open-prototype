@@ -48,12 +48,7 @@ export class LLMConfigService {
   getAvailableModels(): string[] {
     return [
       'deepseek-chat',
-      'gpt-4-turbo',
-      'gpt-4',
-      'gpt-3.5-turbo',
-      'claude-3-sonnet',
-      'claude-3-haiku',
-      'gemini-pro',
+      'deepseek-coder',
     ];
   }
 
@@ -68,9 +63,9 @@ export class LLMConfigService {
 
   private loadDefaultConfig(): LLMConfig {
     return {
-      gatewayUrl: process.env.LITELLM_GATEWAY_URL || 'https://api.litellm.ai/v1',
+      gatewayUrl: process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com/v1',
       model: process.env.DEFAULT_MODEL || 'deepseek-chat',
-      apiKey: process.env.LITELLM_API_KEY,
+      apiKey: process.env.DEEPSEEK_API_KEY,
       temperature: 0.7,
       maxTokens: 4000,
       stream: true,
@@ -105,7 +100,7 @@ export class LLMConfigService {
     };
   }
 
-  // Test connection to LiteLLM gateway
+  // Test connection to DeepSeek API
   async testConnection(): Promise<{ success: boolean; error?: string }> {
     try {
       const axios = (await import('axios')).default;
@@ -120,7 +115,7 @@ export class LLMConfigService {
         {
           headers: {
             'Content-Type': 'application/json',
-            ...(this.config.apiKey && { Authorization: `Bearer ${this.config.apiKey}` }),
+            'Authorization': `Bearer ${this.config.apiKey}`,
           },
           timeout: 10000,
         }

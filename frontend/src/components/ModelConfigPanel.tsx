@@ -49,11 +49,8 @@ export const ModelConfigPanel: React.FC<ModelConfigPanelProps> = ({ onClose }) =
   };
 
   const modelOptions = [
-    { id: 'deepseek-chat', name: 'DeepSeek Chat', description: 'Fast and efficient for code generation' },
-    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Most capable OpenAI model' },
-    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Fast and cost-effective' },
-    { id: 'claude-3-sonnet', name: 'Claude 3 Sonnet', description: 'Balanced performance and speed' },
-    { id: 'claude-3-haiku', name: 'Claude 3 Haiku', description: 'Fastest Claude model' }
+    { id: 'deepseek-chat', name: 'DeepSeek Chat', description: 'Fast and efficient for general tasks' },
+    { id: 'deepseek-coder', name: 'DeepSeek Coder', description: 'Specialized for code generation' }
   ];
 
   return (
@@ -63,7 +60,7 @@ export const ModelConfigPanel: React.FC<ModelConfigPanelProps> = ({ onClose }) =
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center">
             <Zap className="h-6 w-6 text-blue-600 mr-3" />
-            <h2 className="text-xl font-semibold text-gray-900">LLM Configuration</h2>
+            <h2 className="text-xl font-semibold text-gray-900">DeepSeek Configuration</h2>
           </div>
           <button
             onClick={onClose}
@@ -77,13 +74,13 @@ export const ModelConfigPanel: React.FC<ModelConfigPanelProps> = ({ onClose }) =
           {/* Gateway URL */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              LiteLLM Gateway URL
+              DeepSeek API URL
             </label>
             <input
               type="url"
               value={localConfig.gatewayUrl}
               onChange={(e) => setLocalConfig(prev => ({ ...prev, gatewayUrl: e.target.value }))}
-              placeholder="https://api.litellm.ai/v1"
+              placeholder="https://api.deepseek.com/v1"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -113,18 +110,22 @@ export const ModelConfigPanel: React.FC<ModelConfigPanelProps> = ({ onClose }) =
             </div>
           </div>
 
-          {/* API Key (Optional) */}
+          {/* API Key (Required) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              API Key (Optional)
+              DeepSeek API Key <span className="text-red-500">*</span>
             </label>
             <input
               type="password"
               value={localConfig.apiKey || ''}
               onChange={(e) => setLocalConfig(prev => ({ ...prev, apiKey: e.target.value }))}
-              placeholder="Leave empty if using gateway authentication"
+              placeholder="Enter your DeepSeek API key"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Get your API key from <a href="https://platform.deepseek.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">platform.deepseek.com</a>
+            </p>
           </div>
 
           {/* Advanced Settings */}

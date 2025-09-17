@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Edit3, MousePointer, History, Layers } from 'lucide-react';
+import React, { useState } from 'react';
+import { Edit3, MousePointer, History } from 'lucide-react';
 import { ElementSelector } from './ElementSelector';
 import { QuickEditModal } from './QuickEditModal';
 import { UndoRedoManager } from './UndoRedoManager';
@@ -30,7 +30,6 @@ export const SurgicalEditor: React.FC<SurgicalEditorProps> = ({
   const [activeTab, setActiveTab] = useState<'selector' | 'history'>('selector');
   const [selectedElement, setSelectedElement] = useState<ElementInfo | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const undoRedoRef = useRef<any>(null);
   
   const { generatedCode, isGenerating } = useGenerationStore();
 
@@ -41,12 +40,7 @@ export const SurgicalEditor: React.FC<SurgicalEditorProps> = ({
 
   const handleEditComplete = () => {
     setShowEditModal(false);
-    // Save state to history after edit
-    if (undoRedoRef.current) {
-      setTimeout(() => {
-        undoRedoRef.current.saveState(`Edited ${selectedElement?.tagName || 'element'}`);
-      }, 100);
-    }
+    // Note: History management is handled by the UndoRedoManager component
   };
 
   const tabs = [
@@ -119,7 +113,6 @@ export const SurgicalEditor: React.FC<SurgicalEditorProps> = ({
 
         {activeTab === 'history' && (
           <UndoRedoManager
-            ref={undoRedoRef}
             iframeRef={iframeRef}
           />
         )}
@@ -130,7 +123,7 @@ export const SurgicalEditor: React.FC<SurgicalEditorProps> = ({
         isOpen={showEditModal}
         onClose={handleEditComplete}
         elementInfo={selectedElement}
-        projectId={projectId}
+        projectId="current-project"
       />
 
       {/* Status Bar */}

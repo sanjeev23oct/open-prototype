@@ -26,6 +26,10 @@ interface GenerationState {
   completeGeneration: (result: any) => void;
   setError: (error: string | null) => void;
   reset: () => void;
+  
+  // Project management actions
+  setGeneratedCode: (code: GeneratedCode) => void;
+  setCurrentPlan: (plan: GenerationPlan) => void;
 }
 
 export const useGenerationStore = create<GenerationState>((set, get) => ({
@@ -278,5 +282,14 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       generationProgress: null,
       streamingContent: null
     });
+  },
+
+  // Project management actions
+  setGeneratedCode: (code: GeneratedCode) => {
+    set({ generatedCode: code });
+  },
+
+  setCurrentPlan: (plan: GenerationPlan) => {
+    set({ currentPlan: plan });
   }
 }));

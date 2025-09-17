@@ -122,22 +122,24 @@
 
 
 
-- [ ] 9. Live Preview System
+- [x] 9. Live Preview System
   - Build iframe-based preview component with responsive modes
   - Implement real-time HTML injection as elements are generated
   - Add device preview modes (desktop, tablet, mobile)
   - Create preview refresh and error handling
   - Add preview interaction capabilities
-
-
+  - Fixed iframe sandbox issues to allow modals and prevent duplicate identifiers
+  - Added local storage integration for MVP persistence
   - _Requirements: 3.1, 3.2, 3.3, 3.4_
 
-- [ ] 10. Element Selector and Surgical Editing
+- [x] 10. Element Selector and Surgical Editing
   - Create element selector overlay for preview panel
   - Build quick edit modal for selected elements
   - Implement diff-patch integration for fast edits
   - Add real-time preview updates after edits
   - Create undo/redo functionality for edits
+  - Fixed surgical editing to work with local storage for MVP
+  - Added direct DOM manipulation for immediate visual feedback
   - _Requirements: 5.1, 5.2, 5.3, 5.4_
 
 - [ ] 11. Code Editor and Documentation

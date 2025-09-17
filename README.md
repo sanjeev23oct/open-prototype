@@ -88,6 +88,46 @@ docker-compose up -d
 
 That's it! The application will be available at http://localhost:3000.
 
+## 🔧 Configuration
+
+### Environment Variables
+
+Create a `.env` file in the backend directory:
+
+```bash
+# Database
+DATABASE_URL="postgresql://postgres:password@localhost:5432/ai_prototype_generator"
+
+# DeepSeek Configuration
+DEEPSEEK_API_KEY="your-deepseek-api-key"
+DEEPSEEK_API_URL="https://api.deepseek.com/v1"
+DEFAULT_MODEL="deepseek-chat"
+
+# Server Configuration
+PORT=3001
+WS_PORT=3002
+NODE_ENV=development
+
+# Hardcoded User ID for MVP
+DEFAULT_USER_ID="user-12345"
+
+# CORS Origins
+CORS_ORIGINS="http://localhost:3000"
+```
+
+### Getting DeepSeek API Key
+
+1. Visit [platform.deepseek.com](https://platform.deepseek.com)
+2. Sign up or log in to your account
+3. Navigate to API Keys section
+4. Create a new API key
+5. Copy the key and add it to your `.env` file
+
+### Available Models
+
+- **deepseek-chat**: General purpose model, great for planning and documentation
+- **deepseek-coder**: Specialized for code generation tasks
+
 ## Project Structure
 
 ```

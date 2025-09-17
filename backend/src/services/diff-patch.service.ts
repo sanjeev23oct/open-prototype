@@ -1,15 +1,37 @@
 import { diff_match_patch } from 'diff-match-patch';
 import { CodeSection } from '../types/database';
 import { PatchResult, ElementPatch } from '../types/generation';
+import { SurgicalEditService } from './surgical-edit.service.js';
 
 export class DiffPatchService {
-  private dmp: diff_match_patch;
+  private dmp: typeof diff_match_patch.prototype;
 
   constructor() {
     this.dmp = new diff_match_patch();
     // Configure for better performance on code
     this.dmp.Diff_Timeout = 1.0;
     this.dmp.Diff_EditCost = 4;
+  }
+
+  // Method called by WebSocket integration service
+  async applyEdit(currentCode: string, editRequest: string): Promise<string> {
+    // Use the surgical edit service for AI-powered edits
+    const surgicalEditService = new SurgicalEditService({
+      apiKey: process.env.DEEPSEEK_API_KEY || '',
+      apiUrl: process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com/v1',
+      model: process.env.DEEPSEEK_MODEL || 'deepseek-coder',
+      temperature: 0.1,
+      maxTokens: 4000
+    });
+
+    const result = await surgicalEditService.applySurgicalEdit(currentCode, editRequest);
+    return result.updatedCode;
+  }
+
+  // Method called by WebSocket integration service
+  createPatch(oldContent: string, newContent: string): string {
+    const patches = this.dmp.patch_make(oldContent, newContent);
+    return this.dmp.patch_toText(patches);
   }
 
   applyElementPatch(
@@ -33,10 +55,10 @@ export class DiffPatchService {
         affectedLines: this.getAffectedLines(fullHTML, elementId),
         elementId
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
-        error: `Patch application failed: ${error.message}`,
+        error: `Patch application failed: ${error?.message || 'Unknown error'}`,
         elementId
       };
     }
@@ -52,7 +74,7 @@ export class DiffPatchService {
       const [updatedContent, results] = this.dmp.patch_apply(patches, oldSection.codeContent);
       
       // Check if all patches applied successfully
-      const allSuccessful = results.every(result => result === true);
+      const allSuccessful = results.every((result: any) => result === true);
       
       if (!allSuccessful) {
         throw new Error('Some patches failed to apply');
@@ -65,10 +87,10 @@ export class DiffPatchService {
         affectedLines: this.calculateAffectedLines(patches),
         sectionName
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
-        error: `Section patch failed: ${error.message}`,
+        error: `Section patch failed: ${error?.message || 'Unknown error'}`,
         sectionName
       };
     }
@@ -102,14 +124,14 @@ export class DiffPatchService {
         const patchObjects = this.dmp.patch_fromText(patch.patchData);
         const [patchedContent, results] = this.dmp.patch_apply(patchObjects, currentContent);
         
-        const allSuccessful = results.every(result => result === true);
+        const allSuccessful = results.every((result: any) => result === true);
         if (allSuccessful) {
           currentContent = patchedContent;
         } else {
           errors.push(`Failed to apply patch for ${patch.elementSelector}`);
         }
-      } catch (error) {
-        errors.push(`Error applying patch for ${patch.elementSelector}: ${error.message}`);
+      } catch (error: any) {
+        errors.push(`Error applying patch for ${patch.elementSelector}: ${error?.message || 'Unknown error'}`);
       }
     }
     
@@ -156,6 +178,8 @@ export class DiffPatchService {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       
+      if (!line) continue;
+      
       // Look for element by ID, class, or data attribute
       if (line.includes(`id="${elementId}"`) || 
           line.includes(`class="${elementId}"`) ||
@@ -171,13 +195,15 @@ export class DiffPatchService {
     return null;
   }
 
-  private findElementEndLine(lines: string[], startLine: number, elementId: string): number {
-    const startTag = lines[startLine].match(/<(\w+)/)?.[1];
+  private findElementEndLine(lines: string[], startLine: number, _elementId: string): number {
+    const startTag = lines[startLine]?.match(/<(\w+)/)?.[1];
     if (!startTag) return startLine;
     
     let depth = 0;
     for (let i = startLine; i < lines.length; i++) {
       const line = lines[i];
+      
+      if (!line) continue;
       
       // Count opening tags
       const openTags = (line.match(new RegExp(`<${startTag}(?:\\s|>)`, 'g')) || []).length;

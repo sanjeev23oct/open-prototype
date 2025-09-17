@@ -60,28 +60,86 @@ export const QuickEditModal: React.FC<QuickEditModalProps> = ({
       
       switch (editMode) {
         case 'text':
-          editRequest = `Change the text content of ${elementInfo.selector} to: "${textContent}"`;
+          editRequest = `Change text to "${textContent}"`;
           break;
         case 'style':
-          editRequest = `Apply these CSS styles to ${elementInfo.selector}: ${styleChanges}`;
+          editRequest = `Apply CSS styles: ${styleChanges}`;
           break;
         case 'attributes':
           const attrChanges = attributeChanges
             .filter(attr => attr.name && attr.value)
             .map(attr => `${attr.name}="${attr.value}"`)
             .join(' ');
-          editRequest = `Update attributes of ${elementInfo.selector} to: ${attrChanges}`;
+          editRequest = `Update attributes to: ${attrChanges}`;
           break;
         case 'ai':
           editRequest = aiPrompt;
           break;
       }
       
-      await editElement(projectId, elementInfo.id, editRequest);
+      // For MVP, apply changes directly to the iframe DOM
+      const iframe = document.querySelector('iframe[title="Generated Prototype Preview"]') as HTMLIFrameElement;
+      if (!iframe?.contentDocument) {
+        throw new Error('Preview iframe not found');
+      }
+
+      const doc = iframe.contentDocument;
+      const targetElement = doc.querySelector(elementInfo.selector);
+      
+      if (!targetElement) {
+        throw new Error('Target element not found in preview');
+      }
+
+      // Apply the edit based on mode
+      switch (editMode) {
+        case 'text':
+          targetElement.textContent = textContent;
+          break;
+        case 'style':
+          // Parse and apply CSS styles
+          const styles = styleChanges.split(';').filter(s => s.trim());
+          styles.forEach(style => {
+            const [property, value] = style.split(':').map(s => s.trim());
+            if (property && value) {
+              (targetElement as HTMLElement).style.setProperty(property, value);
+            }
+          });
+          break;
+        case 'attributes':
+          // Apply attribute changes
+          attributeChanges.forEach(attr => {
+            if (attr.name && attr.value) {
+              targetElement.setAttribute(attr.name, attr.value);
+            }
+          });
+          break;
+        case 'ai':
+          // For AI edits, try to parse the instruction and apply simple changes
+          const lowerPrompt = aiPrompt.toLowerCase();
+          if (lowerPrompt.includes('text') && lowerPrompt.includes('to')) {
+            const textMatch = aiPrompt.match(/text.*to\s*['"]([^'"]+)['"]/i);
+            if (textMatch) {
+              targetElement.textContent = textMatch[1];
+            }
+          } else if (lowerPrompt.includes('color')) {
+            const colorMatch = aiPrompt.match(/color.*to\s*([a-zA-Z-]+)/i);
+            if (colorMatch) {
+              (targetElement as HTMLElement).style.color = colorMatch[1];
+            }
+          }
+          break;
+      }
+
+      // Save the updated HTML to local storage
+      const updatedHTML = doc.documentElement.outerHTML;
+      localStorage.setItem(`project_${projectId}_html`, updatedHTML);
+      
       success('Element updated successfully');
       onClose();
-    } catch (err) {
-      error('Failed to update element');
+      
+    } catch (err: any) {
+      console.error('Edit failed:', err);
+      error(err.message || 'Failed to update element');
     } finally {
       setIsProcessing(false);
     }
